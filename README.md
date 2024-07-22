@@ -8,8 +8,13 @@ A Google Maps Python API key is required to perform a real-time Google Maps sear
 https://github.com/googlemaps/google-maps-services-python/
 
 Create an .env text file with the following line:
-$ MAPS_API_KEY=YOUR_API_KEY
+```
+MAPS_API_KEY=YOUR_API_KEY
+```
+Important: This key should be kept secret on your server.
 
-Python dependencies:
-$!pip install langchain
-$!pip install googlemaps
+## Python dependencies:
+```
+pip install langchain
+pip install googlemaps
+```
