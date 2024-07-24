@@ -15,6 +15,8 @@ from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationChain
 from typing import Dict, List
 import json
+import googlemaps
+from datetime import datetime, timedelta
 
 # initialize the LLM
 llm = OpenAI(temperature=0)
@@ -78,11 +80,13 @@ extract_locations_template = PromptTemplate(
 extract_locations_chain = LLMChain(llm=llm, prompt=extract_locations_template, output_key="locations")
 
 def get_travel_duration(origin, destination, mode):
-    import googlemaps
-    from datetime import datetime, timedelta
     gmaps = googlemaps.Client(MAPS_API_KEY)
     now = datetime.now()
-    directions_result = gmaps.directions(origin, destination, mode, departure_time=now)
+    try:
+        directions_result = gmaps.directions(origin, destination, mode, departure_time=now)
+    except:
+        print('Route not found.')
+        return (None, None)
     duration_result = directions_result[0].get('legs')[0].get('duration')
     return (duration_result['text'], (now + timedelta(seconds=duration_result['value'])).strftime('%Y/%m/%d %H:%M %p'))
 
@@ -106,7 +110,7 @@ class LocationProcessingChain(Chain):
 
 final_response_template = PromptTemplate(
     input_variables=["travel_info"],
-    template="Based on the following travel information: {travel_info}\nProvide a natural language response about the travel duration."
+    template="Based on the following travel information: {travel_info}\nProvide a natural language response about the travel duration. If no duration or ETA found, say 'no route was found from origin to destination'. "
 )
 
 final_response_chain = LLMChain(llm=llm, prompt=final_response_template, output_key="final_response")
@@ -203,7 +207,10 @@ def perform_nearby_search(origin, destination, original_user_input):
 def nearby_search(location, keyword):
     url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={location}&radius=1500&keyword={keyword}&key={MAPS_API_KEY}"
     response = requests.get(url)
-    data = response.json()
+    if response.status_code == 200:
+        data = response.json()
+    else:
+        raise Exception(f"API Request failed with status code: {response.status_code}")
     if data['status'] == 'OK' and len(data['results']) > 0:
         nearest = data['results'][0]
         return {
@@ -211,16 +218,19 @@ def nearby_search(location, keyword):
             'address': nearest['vicinity'],
             'location': f"{nearest['geometry']['location']['lat']},{nearest['geometry']['location']['lng']}"
         }
-    return None
+    return {}
 
 def get_latlong(address):
     url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={MAPS_API_KEY}"
     response = requests.get(url)
-    data = response.json()
+    if response.status_code == 200:
+        data = response.json()
+    else:
+        raise Exception(f"API Request failed with status code: {response.status_code}")
     if data['status'] == 'OK':
         location = data['results'][0]['geometry']['location']
         return f"{location['lat']},{location['lng']}"
-    return None
+    return ""
 
 # run the chatbot
 if __name__ == "__main__":
